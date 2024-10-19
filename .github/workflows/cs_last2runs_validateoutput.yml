@@ -1,0 +1,40 @@
+name: CrowdStrike Report Processor (latest 2 reports, validation record)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  run-python-script:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10' 
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openpyxl pandas
+          pip install git+https://github.com/CrowdStrike/falconpy.git
+
+      - name: Run Python script
+        env:
+          CROWDSTRIKE_CLIENT_ID: ${{ secrets.CROWDSTRIKE_CLIENT_ID }}
+          CROWDSTRIKE_CLIENT_SECRET: ${{ secrets.CROWDSTRIKE_CLIENT_SECRET }}
+          CROWDSTRIKE_REPORT_ID: ${{ secrets.CROWDSTRIKE_REPORT_ID }}
+        run: |
+          python crowdstrike/cs_last2runs_validateoutput.py
+
+      - name: Upload output files
+        uses: actions/upload-artifact@v3
+        with:
+          name: report-results
+          path: "*.xlsx"
