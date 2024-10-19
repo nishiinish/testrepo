@@ -5,6 +5,7 @@ from falconpy import ReportExecutions
 from datetime import datetime
 import os
 
+# Environment variables for CrowdStrike API credentials
 CROWDSTRIKE_CLIENT_ID = os.getenv("CROWDSTRIKE_CLIENT_ID")
 CROWDSTRIKE_CLIENT_SECRET = os.getenv("CROWDSTRIKE_CLIENT_SECRET")
 CROWDSTRIKE_REPORT_ID = os.getenv("CROWDSTRIKE_REPORT_ID")
@@ -13,7 +14,8 @@ def retrieve_report_executions(sdk: ReportExecutions, rptid: str):
     """Retrieve the list of execution IDs that match this report ID."""
     print(f"Searching for executions of {rptid}")
     execution_id_lookup = sdk.reports_executions_query(filter=f"scheduled_report_id:'{rptid}'")
-    if not execution_id_lookup["status_code"] == 200:
+    
+    if execution_id_lookup["status_code"] != 200:
         raise SystemExit("Unable to retrieve report executions from "
                          "the CrowdStrike API, check API key permissions.")
 
@@ -23,8 +25,10 @@ def get_report_execution_runs(sdk: ReportExecutions, id_list: list):
     """Retrieve the list of execution runs for each execution ID."""
     print(f"Found {len(id_list)} executions of this report available.")
     exec_status_lookup = sdk.report_executions_get(id_list)
-    if not exec_status_lookup["status_code"] == 200:
+    
+    if exec_status_lookup["status_code"] != 200:
         raise SystemExit("Unable to retrieve execution statuses from the CrowdStrike API.")
+    
     print(f"This execution has run {len(exec_status_lookup['body']['resources'])} times.")
     return sdk, exec_status_lookup["body"]["resources"]
 
@@ -87,27 +91,32 @@ def compare_excel_files(file1, file2):
     older_data = read_file(file1)
     newer_data = read_file(file2)
 
+    # Drop rows with missing 'CVE ID'
     older_data = older_data.dropna(subset=['CVE ID'])
     newer_data = newer_data.dropna(subset=['CVE ID'])
 
+    # Merge on CVE details to find unique values in the second file
     comparison = pd.merge(newer_data, older_data, on=['CVE ID', 'Image repository', 'Image tag', 'Image name', 'Image registry'], how='left', indicator=True)
     unique_values = comparison[comparison['_merge'] == 'left_only']
 
+    # Save unique values to a new Excel file
     current_date = datetime.now().strftime('%Y_%m_%d')
     output_file_name = f'{current_date}_ImageVulnerabilityAssessment.xlsx'
-
     unique_values[['CVE ID', 'Image repository', 'Image tag', 'Image name', 'Image registry']].to_excel(output_file_name, index=False)
 
     print(f"The data has been successfully saved to {output_file_name}.")
     return output_file_name
 
 if __name__ == "__main__":
+    # Initialize Falcon ReportExecutions object with CrowdStrike credentials
     falcon = ReportExecutions(client_id=CROWDSTRIKE_CLIENT_ID, client_secret=CROWDSTRIKE_CLIENT_SECRET)
 
+    # Retrieve and process report executions
     saved_files = process_executions(
         *get_report_execution_runs(*retrieve_report_executions(falcon, CROWDSTRIKE_REPORT_ID))
     )
 
+    # Compare the two most recent reports if enough files are saved
     if len(saved_files) == 2:
         file1, file2 = saved_files
         output_file = compare_excel_files(file1, file2)
