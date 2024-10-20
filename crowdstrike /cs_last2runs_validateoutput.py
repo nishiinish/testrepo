@@ -1,7 +1,7 @@
 import csv
 import openpyxl
 import pandas as pd
-from crowdstrike-falconpy import ReportExecutions
+from falconpy import ReportExecutions
 from datetime import datetime
 import os
 
