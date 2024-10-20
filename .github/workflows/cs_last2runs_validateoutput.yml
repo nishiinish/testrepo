@@ -23,7 +23,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install openpyxl pandas
-          pip install falconpy
+          pip install crowdstrike-falconpy
 
       - name: Run Python script
         env:
